@@ -1,0 +1,33 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="LGPL-3.0"
+
+[[mods]]
+modId="ling_horizons"
+version="${version}"
+displayName="LING Horizons"
+description='''
+LING Horizons is a next-generation GPU-driven Voxel Level-of-Detail (LOD) rendering engine for Minecraft 1.21.1 on NeoForge.
+Featuring Sparse Voxel DAG, SIMD-accelerated voxel processing, MDIC compute rendering, planetary curvature, and full Iris/Sodium support.
+'''
+authors="LING"
+
+[[mixins]]
+config="ling_horizons.client.mixins.json"
+
+[[mixins]]
+config="ling_horizons.common.mixins.json"
+
+[[dependencies.ling_horizons]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.0,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.ling_horizons]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="BOTH"

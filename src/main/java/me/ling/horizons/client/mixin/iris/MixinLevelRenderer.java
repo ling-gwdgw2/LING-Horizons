@@ -1,0 +1,45 @@
+package me.ling.horizons.client.mixin.iris;
+
+import me.ling.horizons.client.core.IGetLingRenderSystem;
+import me.ling.horizons.client.core.util.IrisUtil;
+import net.caffeinemc.mods.sodium.client.render.chunk.ChunkRenderMatrices;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
+import org.joml.Matrix4f;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import static org.lwjgl.opengl.GL11C.glViewport;
+
+@Mixin(LevelRenderer.class)
+public class MixinLevelRenderer {
+
+    @Inject(method = "renderLevel", at = @At("HEAD"), order = 100)
+    private void voxy$injectIrisCompat(
+            DeltaTracker tickCounter,
+            boolean renderBlockOutline,
+            Camera camera,
+            GameRenderer gameRenderer,
+            LightTexture lightTexture,
+            Matrix4f modelViewMatrix,
+            Matrix4f projectionMatrix,
+            CallbackInfo ci) {
+        if (IrisUtil.irisShaderPackEnabled()) {
+            var renderer = ((IGetLingRenderSystem) this).getLingRenderSystem();
+            if (renderer != null) {
+                glViewport(0, 0, Minecraft.getInstance().getMainRenderTarget().width, Minecraft.getInstance().getMainRenderTarget().height);
+                var pos = camera.getPosition();
+                IrisUtil.CAPTURED_VIEWPORT_PARAMETERS = new IrisUtil.CapturedViewportParameters(
+                    new ChunkRenderMatrices(projectionMatrix, modelViewMatrix),
+                    pos.x, pos.y, pos.z
+                );
+            }
+        }
+    }
+}

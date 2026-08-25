@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "me.ling.horizons.commonImpl.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "minecraft.MixinWorld"
+  ]
+}
