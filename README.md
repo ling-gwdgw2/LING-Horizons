@@ -44,7 +44,7 @@ cd LING-Horizons
 ./gradlew build
 ```
 
-The compiled mod JAR will be located in `build/libs/lingHorizons-V1-1.0.0.jar`.
+The compiled mod JAR will be located in `build/libs/lingHorizons-V1-1.0.1.jar`.
 
 ---
 
