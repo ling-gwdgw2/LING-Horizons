@@ -17,6 +17,7 @@ import static org.lwjgl.opengl.ARBMapBufferRange.*;
 import static org.lwjgl.opengl.GL11.glFinish;
 import static org.lwjgl.opengl.GL42.glMemoryBarrier;
 import static org.lwjgl.opengl.GL42C.GL_BUFFER_UPDATE_BARRIER_BIT;
+import static org.lwjgl.opengl.GL43C.GL_SHADER_STORAGE_BARRIER_BIT;
 import static org.lwjgl.opengl.GL44.GL_CLIENT_STORAGE_BIT;
 import static org.lwjgl.opengl.GL44.GL_MAP_COHERENT_BIT;
 import static org.lwjgl.opengl.GL45C.glFlushMappedNamedBufferRange;
@@ -123,7 +124,7 @@ public class UploadStream {
         }
         this.uploadList.clear();
 
-        glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);//|GL_SHADER_STORAGE_BARRIER_BIT|GL_UNIFORM_BARRIER_BIT //expected + other barriers which may cause issues if not
+        glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 
         this.caddr = -1;
         this.offset = 0;

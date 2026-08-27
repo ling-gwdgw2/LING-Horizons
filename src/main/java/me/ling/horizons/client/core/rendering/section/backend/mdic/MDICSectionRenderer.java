@@ -62,7 +62,8 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
 
             .defineIf("HAS_STATISTICS", RenderStatistics.enabled)
             .defineIf("STATISTICS_BUFFER_BINDING", RenderStatistics.enabled, STATISTICS_BUFFER_BINDING)
-            .defineIf("USE_SUBGROUPS", Capabilities.INSTANCE.subgroup)
+            // Use hardware SSBO atomicAdd for 100% uniform stability across all GPU architectures
+            // .defineIf("USE_SUBGROUPS", Capabilities.INSTANCE.subgroup)
 
             .add(ShaderType.COMPUTE, "ling_horizons:lod/gl46/cmdgen.comp")
             .compile();
