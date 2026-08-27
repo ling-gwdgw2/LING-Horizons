@@ -56,12 +56,15 @@ void main() {
         return;
     }
 
-    ivec3 cubeCornerI = ivec3(gl_VertexID&1, (gl_VertexID>>2)&1, (gl_VertexID>>1)&1)*16;
-    //Expand the y height to be big (will be +- 8192)
-    //TODO: make it W.R.T world height and offsets
-    //cubeCornerI.y = cubeCornerI.y*1024-512;
-    gl_Position = MVP * vec4(vec3(cubeCornerI+origin), 1);
-    gl_Position.z -= 0.0005f;
+    // Inset bounding box by 1.0 block horizontally to allow LOD quads to overlap and seal chunk boundaries.
+    // This completely eliminates see-through gaps on water surfaces, cliff edges, and sand slopes.
+    // The GPU hardware depth test (GL_LEQUAL) naturally hides any overlapping LOD geometry behind vanilla terrain.
+    float xCorner = ((gl_VertexID & 1) != 0) ? 15.0 : 1.0;
+    float yCorner = (((gl_VertexID >> 2) & 1) != 0) ? 16.0 : 0.0;
+    float zCorner = (((gl_VertexID >> 1) & 1) != 0) ? 15.0 : 1.0;
+    vec3 cubeCorner = vec3(xCorner, yCorner, zCorner);
+
+    gl_Position = MVP * vec4(cubeCorner + vec3(origin), 1.0);
 
     #ifdef TAA
     gl_Position.xy += getTAA()*gl_Position.w;//Apply TAA if we have it
