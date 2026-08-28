@@ -238,24 +238,22 @@ public abstract class LingInstance {
         long stamp = this.activeWorldLock.writeLock();
 
         if (!this.activeWorlds.isEmpty()) {
-            boolean printedNotice = false;
             for (var world : this.activeWorlds.values()) {
-                if (world.isWorldUsed()) {
-                    if (!printedNotice) {
-                        printedNotice = true;
-                        Logger.error("Not all worlds shutdown, force closing worlds");
-                    }
-                    while (world.isWorldUsed()) {
-                        try {
-                            //noinspection BusyWait
-                            Thread.sleep(10);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                int waitCount = 0;
+                while (world.isWorldUsed() && waitCount < 20) {
+                    try {
+                        Thread.sleep(10);
+                        waitCount++;
+                    } catch (InterruptedException e) {
+                        break;
                     }
                 }
-                //Free the world
-                world.free();
+                // Free the world safely
+                try {
+                    world.free();
+                } catch (Exception e) {
+                    Logger.error(e);
+                }
             }
             this.activeWorlds.clear();
         }

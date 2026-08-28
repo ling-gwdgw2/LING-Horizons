@@ -14,6 +14,10 @@ public class MixinMinecraft {
     @Inject(method = "disconnect", at = @At("HEAD"))
     private void voxy$injectWorldClose(CallbackInfo ci) {
         WorldPregenerator.getInstance().cancelPregen();
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.levelRenderer != null) {
+            ((me.ling.horizons.client.core.IGetLingRenderSystem) mc.levelRenderer).shutdownRenderer();
+        }
         if (LingCommon.isAvailable() && LingClientInstance.isInGame) {
             LingCommon.shutdownInstance();
             LingClientInstance.isInGame = false;

@@ -138,19 +138,20 @@ public class WorldEngine {
     }
 
     public void free() {
-        if (!this.isLive) throw new IllegalStateException();
+        if (!this.isLive) return;
         this.isLive = false;
         VarHandle.fullFence();
-        //Cannot free while there are loaded sections
-        if (this.sectionTracker.getLoadedCacheCount() != 0) {
-            throw new IllegalStateException();
+
+        try {
+            this.sectionTracker.forceClear();
+        } catch (Exception e) {
+            Logger.error(e);
         }
 
-        this.thisTracker.free();
-        try {this.mapper.close();} catch (Exception e) {Logger.error(e);}
-        try {this.storage.flush();} catch (Exception e) {Logger.error(e);}
-        //Shutdown in this order to preserve as much data as possible
-        try {this.storage.close();} catch (Exception e) {Logger.error(e);}
+        try { this.thisTracker.free(); } catch (Exception e) { Logger.error(e); }
+        try { this.mapper.close(); } catch (Exception e) { Logger.error(e); }
+        try { this.storage.flush(); } catch (Exception e) { Logger.error(e); }
+        try { this.storage.close(); } catch (Exception e) { Logger.error(e); }
     }
 
     private static final long TIMEOUT_MILLIS = 10_000;//10 second timeout (is to long? or to short??)

@@ -295,6 +295,39 @@ public class ActiveSectionTracker {
         return this.lruSecondaryCache.size();
     }
 
+    public void forceClear() {
+        for (int i = 0; i < this.loadedSectionCache.length; i++) {
+            final var lock = this.locks[i];
+            long stamp = lock.writeLock();
+            try {
+                for (var holder : this.loadedSectionCache[i].values()) {
+                    if (holder != null && holder.obj != null) {
+                        try {
+                            holder.obj._releaseArray();
+                        } catch (Exception ignored) {}
+                    }
+                }
+                this.loadedSectionCache[i].clear();
+            } finally {
+                lock.unlockWrite(stamp);
+            }
+        }
+        long lruStamp = this.lruLock.writeLock();
+        try {
+            for (var sec : this.lruSecondaryCache.values()) {
+                if (sec != null) {
+                    try {
+                        sec._releaseArray();
+                    } catch (Exception ignored) {}
+                }
+            }
+            this.lruSecondaryCache.clear();
+        } finally {
+            this.lruLock.unlockWrite(lruStamp);
+        }
+        this.loadedSections.set(0);
+    }
+
     public static void main(String[] args) throws InterruptedException {
         var tracker = new ActiveSectionTracker(6, a->0, 2<<10);
         var bean = tracker.acquire(0, 0, 0, 9, false);
