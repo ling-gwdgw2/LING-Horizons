@@ -177,6 +177,7 @@ public class VoxelIngestService {
     }
 
     public void shutdown() {
+        this.ingestQueue.clear();
         this.service.shutdown();
     }
 

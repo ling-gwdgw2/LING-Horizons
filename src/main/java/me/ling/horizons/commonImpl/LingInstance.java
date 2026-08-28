@@ -216,55 +216,37 @@ public abstract class LingInstance {
     public void shutdown() {
         Logger.info("Shutting down voxy instance");
         this.isRunning = false;
-        try {
-            this.worldCleaner.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        this.cleanIdle();
 
-        if (!this.activeWorlds.isEmpty()) {
-            long stamp = this.activeWorldLock.readLock();
-            for (var world : this.activeWorlds.values()) {
-                this.importManager.cancelImport(world);
-            }
-            this.activeWorldLock.unlockRead(stamp);
+        if (this.worldCleaner != null) {
+            try {
+                this.worldCleaner.interrupt();
+                this.worldCleaner.join(100);
+            } catch (Exception ignored) {}
         }
 
-        try {this.ingestService.shutdown();} catch (Exception e) {Logger.error(e);}
-        try {this.savingService.shutdown();} catch (Exception e) {Logger.error(e);}
-
+        try { this.ingestService.shutdown(); } catch (Exception e) { Logger.error(e); }
+        try { this.savingService.shutdown(); } catch (Exception e) { Logger.error(e); }
 
         long stamp = this.activeWorldLock.writeLock();
-
-        if (!this.activeWorlds.isEmpty()) {
-            for (var world : this.activeWorlds.values()) {
-                int waitCount = 0;
-                while (world.isWorldUsed() && waitCount < 20) {
+        try {
+            if (!this.activeWorlds.isEmpty()) {
+                for (var world : this.activeWorlds.values()) {
                     try {
-                        Thread.sleep(10);
-                        waitCount++;
-                    } catch (InterruptedException e) {
-                        break;
+                        this.importManager.cancelImport(world);
+                        world.free();
+                    } catch (Exception e) {
+                        Logger.error(e);
                     }
                 }
-                // Free the world safely
-                try {
-                    world.free();
-                } catch (Exception e) {
-                    Logger.error(e);
-                }
+                this.activeWorlds.clear();
             }
-            this.activeWorlds.clear();
+        } finally {
+            this.activeWorldLock.unlockWrite(stamp);
         }
 
-        try {this.threadPool.shutdown();} catch (Exception e) {Logger.error(e);}
+        try { this.threadPool.shutdown(); } catch (Exception e) { Logger.error(e); }
 
-        if (!this.activeWorlds.isEmpty()) {
-            throw new IllegalStateException("Not all worlds shutdown");
-        }
         Logger.info("Instance shutdown");
-        this.activeWorldLock.unlockWrite(stamp);
     }
 
     public boolean isIngestEnabled(WorldIdentifier worldId) {

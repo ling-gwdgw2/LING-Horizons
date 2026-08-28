@@ -72,15 +72,18 @@ public class SectionSavingService {
     }
 
     public void shutdown() {
-        if (this.service.numJobs() != 0) {
-            Logger.error("Voxy section saving still in progress, estimated " + this.service.numJobs() + " sections remaining.");
-            this.service.blockTillEmpty();
-        }
         this.service.shutdown();
-        //Manually save any remaining entries
-        while (!this.saveQueue.isEmpty()) {
-            this.processJob();
+        int saved = 0;
+        // Manually save remaining entries up to 200 items to avoid long shutdown delay
+        while (!this.saveQueue.isEmpty() && saved < 200) {
+            try {
+                this.processJob();
+                saved++;
+            } catch (Exception e) {
+                break;
+            }
         }
+        this.saveQueue.clear();
     }
 
     public int getTaskCount() {
