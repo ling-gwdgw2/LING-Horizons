@@ -76,8 +76,9 @@ public class ClientLodStreamManager {
             return;
         }
 
+        MemoryBuffer buffer = null;
         try {
-            MemoryBuffer buffer = new MemoryBuffer(bytes.length);
+            buffer = new MemoryBuffer(bytes.length);
             MemoryUtil.memByteBuffer(buffer.address, bytes.length).put(bytes);
 
             WorldSection section = engine.acquire(payload.sectionKey());
@@ -93,9 +94,12 @@ public class ClientLodStreamManager {
                     section.release();
                 }
             }
-            buffer.free();
         } catch (Exception e) {
             Logger.error("Failed to process streamed LOD section: " + payload.sectionKey(), e);
+        } finally {
+            if (buffer != null) {
+                buffer.free();
+            }
         }
     }
 
