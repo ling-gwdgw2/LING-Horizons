@@ -22,6 +22,7 @@ public class MixinClientPacketListener {
                 }
                 LingCommon.createInstance();
             }
+            me.ling.horizons.client.network.ClientLodStreamManager.reset();
             me.ling.horizons.client.pregen.WorldPregenerator.triggerAutoPregenIfEnabled();
         }
     }
