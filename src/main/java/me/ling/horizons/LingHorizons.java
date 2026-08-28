@@ -22,6 +22,7 @@ public class LingHorizons {
 
     public LingHorizons(IEventBus modEventBus, ModContainer container) {
         Logger.info("Initializing LING Horizons (Next-Gen Voxel LOD Engine)...");
+
         // Only register client config on client side
         if (FMLLoader.getDist() == Dist.CLIENT) {
             // Register NeoForge config

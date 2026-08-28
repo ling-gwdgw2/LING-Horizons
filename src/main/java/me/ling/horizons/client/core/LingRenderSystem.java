@@ -279,6 +279,7 @@ public class LingRenderSystem {
         TimingStatistics.postDynamic.start();
 
         PrintfDebugUtil.tick();
+        me.ling.horizons.client.network.ClientLodStreamManager.tick();
 
         //As much dynamic runtime stuff here
         {
