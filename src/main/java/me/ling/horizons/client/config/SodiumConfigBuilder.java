@@ -145,6 +145,13 @@ public class SodiumConfigBuilder {
         protected Consumer<TYPE> postRunner;
         protected ResourceLocation[] postRunnerConflicts;
         protected ResourceLocation[] postChangeFlags;
+        protected OptionImpact impact;
+
+        public OPTION setImpact(OptionImpact impact) {
+            this.impact = impact;
+            return (OPTION) this;
+        }
+
         public OPTION setPostChangeRunner(Consumer<TYPE> postRunner, String... dontRunIfChangedVars) {
             this.postRunner = postRunner;
             this.postRunnerConflicts = mapIds(dontRunIfChangedVars);
@@ -162,6 +169,9 @@ public class SodiumConfigBuilder {
             var option = this.createType(builder);
             option.setName(this.name);
             option.setTooltip(this.tooltip);
+            if (this.impact != null) {
+                option.setImpact(this.impact);
+            }
 
             Set<ResourceLocation> flags = new LinkedHashSet<>();
             if (this.postRunner != null) {

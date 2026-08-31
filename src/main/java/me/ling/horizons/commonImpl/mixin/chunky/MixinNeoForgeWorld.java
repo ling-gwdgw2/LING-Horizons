@@ -43,8 +43,8 @@ public class MixinNeoForgeWorld {
         return future.thenApply(res -> {
             if (res != null) {
                 res.ifSuccess(chunk -> {
-                    if (chunk instanceof LevelChunk worldChunk) {
-                        VoxelIngestService.tryAutoIngestChunk(worldChunk);
+                    if (chunk != null) {
+                        VoxelIngestService.tryAutoIngestChunkAccess(chunk, instance.getLevel());
                     }
                 });
             }

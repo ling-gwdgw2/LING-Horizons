@@ -95,26 +95,39 @@ public class LingClientInstance extends LingInstance {
         Path basePath = Minecraft.getInstance().gameDirectory.toPath().resolve(".voxy").resolve("saves");
         var iserver = Minecraft.getInstance().getSingleplayerServer();
         if (iserver != null) {
-            basePath = iserver.getWorldPath(LevelResource.ROOT).resolve("ling_horizons");
-        } else {
-            var netHandle = Minecraft.getInstance().gameMode;
-            if (netHandle == null) {
-                Logger.error("Network handle null");
-                basePath = basePath.resolve("UNKNOWN");
-            } else {
-                var info = netHandle.connection.getServerData();
-                if (info == null) {
-                    Logger.error("Server info null");
-                    basePath = basePath.resolve("UNKNOWN");
-                } else {
-                    if (info.isRealm()) {
-                        basePath = basePath.resolve("realms");
-                    } else {
-                        basePath = basePath.resolve(info.ip.replace(":", "_"));
-                    }
+            return iserver.getWorldPath(LevelResource.ROOT).resolve("ling_horizons").toAbsolutePath();
+        }
+
+        // 1. Current server from server list or packet listener
+        net.minecraft.client.multiplayer.ServerData serverData = Minecraft.getInstance().getCurrentServer();
+        if (serverData == null && Minecraft.getInstance().getConnection() != null) {
+            serverData = Minecraft.getInstance().getConnection().getServerData();
+        }
+        if (serverData == null && Minecraft.getInstance().gameMode != null && Minecraft.getInstance().gameMode.connection != null) {
+            serverData = Minecraft.getInstance().gameMode.connection.getServerData();
+        }
+
+        if (serverData != null) {
+            if (serverData.isRealm()) {
+                return basePath.resolve("realms").toAbsolutePath();
+            } else if (serverData.ip != null && !serverData.ip.isBlank()) {
+                String cleanIp = serverData.ip.replaceAll("[^a-zA-Z0-9._-]", "_");
+                return basePath.resolve(cleanIp).toAbsolutePath();
+            }
+        }
+
+        // 2. Direct connection socket remote address
+        var connection = Minecraft.getInstance().getConnection();
+        if (connection != null && connection.getConnection() != null) {
+            var address = connection.getConnection().getRemoteAddress();
+            if (address != null) {
+                String cleanAddr = address.toString().replace("/", "").replaceAll("[^a-zA-Z0-9._-]", "_");
+                if (!cleanAddr.isBlank()) {
+                    return basePath.resolve(cleanAddr).toAbsolutePath();
                 }
             }
         }
-        return basePath.toAbsolutePath();
+
+        return basePath.resolve("UNKNOWN").toAbsolutePath();
     }
 }

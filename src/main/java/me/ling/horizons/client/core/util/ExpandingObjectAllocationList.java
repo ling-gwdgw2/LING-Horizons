@@ -44,6 +44,14 @@ public class ExpandingObjectAllocationList<T> {
         return this.objects[index];
     }
 
+    public boolean isAllocated(int index) {
+        return index >= 0 && index < this.objects.length && this.bitSet.isSet(index);
+    }
+
+    public int capacity() {
+        return this.objects.length;
+    }
+
     public int count() {
         return this.bitSet.getCount();
     }

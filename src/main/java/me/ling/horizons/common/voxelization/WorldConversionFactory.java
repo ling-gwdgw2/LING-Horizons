@@ -49,7 +49,7 @@ public class WorldConversionFactory {
         }
     }
 
-    private static Object getData(PalettedContainer<?> container) {
+    private static Object getData(PalettedContainerRO<?> container) {
         try {
             return DATA_GETTER.invoke(container);
         } catch (Throwable t) {
@@ -179,82 +179,124 @@ public class WorldConversionFactory {
         var biomes = cache.biomeCache;
         var data = section.section;
 
-        // MC 1.21.1: Use reflection to access private Data.palette
-        var containerData = getData(blockContainer);
-        Palette<BlockState> vp = getPalette(containerData);
-        var pc = cache.getPaletteCache(vp.getSize());
-        GlobalPalette<BlockState> bps = null;
-
-        int pcc = 0;
-        if (vp instanceof GlobalPalette<BlockState> _bps) {
-            bps = _bps;
-            pcc = bps.getSize();
-        } else {
-            pcc = setupLocalPalette(vp, blockCache, stateMapper, pc);
-            pcc = Math.max(0,pcc-1);
-        }
-
-        {
-            int i = 0;
-            for (int y = 0; y < 4; y++) {
-                for (int z = 0; z < 4; z++) {
-                    for (int x = 0; x < 4; x++) {
-                        biomes[i++] = stateMapper.getIdForBiome(biomeContainer.get(x, y, z));
+        if (biomeContainer != null) {
+            try {
+                var biomeData = getData(biomeContainer);
+                Palette<Holder<Biome>> bp = getPalette(biomeData);
+                if (bp.getSize() == 1) {
+                    var singleHolder = bp.valueFor(0);
+                    int singleBiomeId = singleHolder != null ? stateMapper.getIdForBiome(singleHolder) : 0;
+                    java.util.Arrays.fill(biomes, singleBiomeId);
+                } else {
+                    int bi = 0;
+                    for (int y = 0; y < 4; y++) {
+                        for (int z = 0; z < 4; z++) {
+                            for (int x = 0; x < 4; x++) {
+                                var biomeHolder = biomeContainer.get(x, y, z);
+                                biomes[bi++] = biomeHolder != null ? stateMapper.getIdForBiome(biomeHolder) : 0;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                int bi = 0;
+                for (int y = 0; y < 4; y++) {
+                    for (int z = 0; z < 4; z++) {
+                        for (int x = 0; x < 4; x++) {
+                            var biomeHolder = biomeContainer.get(x, y, z);
+                            biomes[bi++] = biomeHolder != null ? stateMapper.getIdForBiome(biomeHolder) : 0;
+                        }
                     }
                 }
             }
+        } else {
+            java.util.Arrays.fill(biomes, 0);
         }
 
+        try {
+            // MC 1.21.1: Use reflection to access private Data.palette
+            var containerData = getData(blockContainer);
+            Palette<BlockState> vp = getPalette(containerData);
+            var pc = cache.getPaletteCache(vp.getSize());
+            GlobalPalette<BlockState> bps = null;
 
-        int nonZeroCnt = 0;
-        // MC 1.21.1: Use reflection to access private Data.storage
-        var storage = getStorage(containerData);
-        if (storage instanceof SimpleBitStorage bStor) {
-            var bDat = bStor.getRaw();
-            int iterPerLong = (64 / bStor.getBits()) - 1;
-
-            int MSK = (1 << bStor.getBits()) - 1;
-            int eBits = bStor.getBits();
-
-            long sample = 0;
-            int c = 0;
-            int dec = 0;
-            for (int i = 0; i <= 0xFFF; i++) {
-                if (dec-- == 0) {
-                    sample = bDat[c++];
-                    dec = iterPerLong;
-                }
-                int bId;
-                if (bps == null) {
-                    bId = pc[Math.min((int) (sample & MSK), pcc)];
-                } else {
-                    bId = stateMapper.getIdForBlockState(bps.valueFor((int) (sample&MSK)));
-                }
-                sample >>>= eBits;
-
-                byte light = lightSupplier.supply(i&0xF, (i>>8)&0xF, (i>>4)&0xF);
-                nonZeroCnt += (bId != 0)?1:0;
-                data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i,0b1100_1100_1100)]);
+            int pcc = 0;
+            if (vp instanceof GlobalPalette<BlockState> _bps) {
+                bps = _bps;
+                pcc = bps.getSize();
+            } else {
+                pcc = setupLocalPalette(vp, blockCache, stateMapper, pc);
+                pcc = Math.max(0, pcc - 1);
             }
-        } else {
-            if (!(storage instanceof ZeroBitStorage)) {
-                throw new IllegalStateException();
-            }
-            int bId = pc[0];
-            if (bId == 0) {//Its air
+
+            int nonZeroCnt = 0;
+            // MC 1.21.1: Use reflection to access private Data.storage
+            var storage = getStorage(containerData);
+            if (storage instanceof SimpleBitStorage bStor) {
+                var bDat = bStor.getRaw();
+                int iterPerLong = (64 / bStor.getBits()) - 1;
+
+                int MSK = (1 << bStor.getBits()) - 1;
+                int eBits = bStor.getBits();
+
+                long sample = 0;
+                int c = 0;
+                int dec = 0;
                 for (int i = 0; i <= 0xFFF; i++) {
-                    data[i] = Mapper.airWithLight(lightSupplier.supply(i&0xF, (i>>8)&0xF, (i>>4)&0xF));
+                    if (dec-- == 0) {
+                        sample = bDat[c++];
+                        dec = iterPerLong;
+                    }
+                    int bId;
+                    if (bps == null) {
+                        bId = pc[Math.min((int) (sample & MSK), pcc)];
+                    } else {
+                        bId = stateMapper.getIdForBlockState(bps.valueFor((int) (sample & MSK)));
+                    }
+                    sample >>>= eBits;
+
+                    byte light = lightSupplier.supply(i & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF);
+                    nonZeroCnt += (bId != 0) ? 1 : 0;
+                    data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i, 0b1100_1100_1100)]);
+                }
+            } else if (storage instanceof ZeroBitStorage) {
+                int bId = pc[0];
+                if (bId == 0) {//Its air
+                    for (int i = 0; i <= 0xFFF; i++) {
+                        data[i] = Mapper.airWithLight(lightSupplier.supply(i & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF));
+                    }
+                } else {
+                    nonZeroCnt = 4096;
+                    for (int i = 0; i <= 0xFFF; i++) {
+                        byte light = lightSupplier.supply(i & 0xF, (i >> 8) & 0xF, (i >> 4) & 0xF);
+                        data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i, 0b1100_1100_1100)]);
+                    }
                 }
             } else {
-                nonZeroCnt = 4096;
-                for (int i = 0; i <= 0xFFF; i++) {
-                    byte light = lightSupplier.supply(i&0xF, (i>>8)&0xF, (i>>4)&0xF);
-                    data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i,0b1100_1100_1100)]);
-                }
+                throw new IllegalStateException("Unsupported storage: " + storage);
             }
+            section.lvl0NonAirCount = nonZeroCnt;
+            return section;
+        } catch (Throwable t) {
+            // Robust universal fallback: iterate 4096 blocks using public API
+            int nonZeroCnt = 0;
+            for (int i = 0; i < 4096; i++) {
+                int bx = i & 0xF;
+                int by = (i >> 8) & 0xF;
+                int bz = (i >> 4) & 0xF;
+                BlockState state = blockContainer.get(bx, by, bz);
+                int bId = blockCache.getOrDefault(state, -1);
+                if (bId == -1) {
+                    bId = stateMapper.getIdForBlockState(state);
+                    blockCache.put(state, bId);
+                }
+                byte light = lightSupplier.supply(bx, by, bz);
+                nonZeroCnt += (bId != 0) ? 1 : 0;
+                data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i, 0b1100_1100_1100)]);
+            }
+            section.lvl0NonAirCount = nonZeroCnt;
+            return section;
         }
-        section.lvl0NonAirCount = nonZeroCnt;
-        return section;
     }
 
 

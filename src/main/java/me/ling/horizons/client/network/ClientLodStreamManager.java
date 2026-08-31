@@ -64,14 +64,29 @@ public class ClientLodStreamManager {
         }
     }
 
+    private static final java.util.concurrent.atomic.AtomicInteger receivedSectionsCount = new java.util.concurrent.atomic.AtomicInteger(0);
+    private static long lastLogReceivedTime = 0;
+    private static final java.util.concurrent.ExecutorService streamProcessingExecutor = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "LING Client LOD Stream Receiver");
+        t.setDaemon(true);
+        t.setPriority(Thread.NORM_PRIORITY - 1);
+        return t;
+    });
+
     public static void onLodDataReceived(LingLodDataPayload payload) {
+        streamProcessingExecutor.submit(() -> {
+            processLodData(payload);
+        });
+    }
+
+    private static void processLodData(LingLodDataPayload payload) {
         var level = Minecraft.getInstance().level;
         byte[] bytes = payload.compressedVoxelData();
         if (level == null || bytes == null || bytes.length == 0) {
             return;
         }
 
-        WorldEngine engine = WorldIdentifier.ofEngineNullable(level);
+        WorldEngine engine = WorldIdentifier.ofEngine(level);
         if (engine == null) {
             return;
         }
@@ -89,6 +104,13 @@ public class ClientLodStreamManager {
                         // Mark as updated and save to client local RocksDB cache
                         engine.markDirty(section);
                         engine.storage.saveSection(section);
+
+                        int count = receivedSectionsCount.incrementAndGet();
+                        long now = System.currentTimeMillis();
+                        if (now - lastLogReceivedTime > 3000) {
+                            lastLogReceivedTime = now;
+                            Logger.info("[LING Horizons Client] Received " + count + " streamed LOD sections from server");
+                        }
                     }
                 } finally {
                     section.release();

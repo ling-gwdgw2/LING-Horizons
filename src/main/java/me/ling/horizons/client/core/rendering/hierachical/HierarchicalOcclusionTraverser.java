@@ -32,7 +32,7 @@ import static org.lwjgl.opengl.GL45.*;
 public class HierarchicalOcclusionTraverser {
     public static final boolean HIERARCHICAL_SHADER_DEBUG = System.getProperty("voxy.hierarchicalShaderDebug", "false").equals("true");
 
-    public static final int MAX_REQUEST_QUEUE_SIZE = 50;
+    public static final int MAX_REQUEST_QUEUE_SIZE = 1024;
     public static final int MAX_QUEUE_SIZE = 200_000;
 
 

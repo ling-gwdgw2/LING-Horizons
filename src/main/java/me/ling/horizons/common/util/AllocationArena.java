@@ -111,9 +111,8 @@ public class AllocationArena {
             iter.nextLong();//Need to reset the iter into its state
         }//If there is no previous it means were at the start of the buffer, we might need to merge with block 0 if we are not block 0
         else if (!this.FREE.isEmpty()) {// if free is not empty it means we must merge with block of free starting at 0
-            //if (addr != 0)//FIXME: this is very dodgy solution, if addr == 0 it means its impossible for there to be a previous element
-            if (this.FREE.remove(addr<<ADDR_BITS)) {//Attempt to remove block 0, this is very dodgy as it assumes block zero is 0 addr n size
-                slot = addr + size;//slot at address 0 and size of 0 block + new block
+            if (this.FREE.remove(addr<<ADDR_BITS)) {// Remove block 0 of size addr: (addr << ADDR_BITS) | 0
+                slot = (0L << SIZE_BITS) | (addr + size);// slot at address 0 and size (addr + size)
             }
         }
 

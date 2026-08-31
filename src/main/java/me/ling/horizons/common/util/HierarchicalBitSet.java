@@ -121,15 +121,24 @@ public class HierarchicalBitSet {
         if (this.A==-1) {
             return -1;
         }
-        if (this.cnt+count>=this.limit) {
+        if (this.cnt + count > this.limit) {
             return -2;//Limit reached
         }
-        long chkMsk = ((1L<<count)-1);
+        long chkMsk = ((1L << count) - 1);
         int i = this.findNextFree(0);
+        int maxIndex = this.D.length * 64;
         while (true) {
-            long fusedValue = this.D[i>>6]>>>(i&63);
-            if (64-(i&63) < count) {
-                fusedValue |= this.D[(i>>6)+1] << (64-(i&63));
+            if (i < 0 || i + count > maxIndex || i + count > this.limit) {
+                return -2;
+            }
+            long fusedValue = this.D[i >> 6] >>> (i & 63);
+            if (64 - (i & 63) < count) {
+                int nextIdx = (i >> 6) + 1;
+                if (nextIdx < this.D.length) {
+                    fusedValue |= this.D[nextIdx] << (64 - (i & 63));
+                } else {
+                    fusedValue |= -1L << (64 - (i & 63));
+                }
             }
 
             if ((fusedValue&chkMsk) != 0) {

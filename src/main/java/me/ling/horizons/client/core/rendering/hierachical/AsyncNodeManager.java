@@ -250,13 +250,16 @@ public class AsyncNodeManager {
 
 
         //Limit uploading as well as by geometry capacity being available
-        // must have 50 mb of free geometry space to upload
-        for (int limit = 0; limit < 300 && ((this.geometryCapacity-this.geometryManager.getGeometryUsedBytes())>50_000_000L); limit++) {
+        // Use adaptive safety margin (min 2MB or 3% of geometry capacity) instead of static 50MB freeze
+        long freeBytes = this.geometryCapacity - this.geometryManager.getGeometryUsedBytes();
+        long minSafetyMargin = Math.min(2_000_000L, this.geometryCapacity / 32);
+        for (int limit = 0; limit < 500 && (freeBytes > minSafetyMargin); limit++) {
             var job = this.geometryUpdateQueue.poll();
             if (job == null)
                 break;
             workDone++;
             this.manager.processGeometryResult(job);
+            freeBytes = this.geometryCapacity - this.geometryManager.getGeometryUsedBytes();
         }
 
         while (true) {//Process all request batches

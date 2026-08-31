@@ -26,4 +26,10 @@ public class MixinClientPacketListener {
             me.ling.horizons.client.pregen.WorldPregenerator.triggerAutoPregenIfEnabled();
         }
     }
+
+    @Inject(method = "handleRespawn", at = @At("HEAD"))
+    private void voxy$onRespawn(net.minecraft.network.protocol.game.ClientboundRespawnPacket packet, CallbackInfo ci) {
+        me.ling.horizons.client.network.ClientLodStreamManager.reset();
+        me.ling.horizons.client.pregen.WorldPregenerator.getInstance().cancelPregen();
+    }
 }

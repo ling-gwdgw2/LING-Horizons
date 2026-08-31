@@ -11,6 +11,8 @@ import me.ling.horizons.common.world.WorldEngine;
 import me.ling.horizons.common.world.WorldSection;
 import me.ling.horizons.common.world.other.Mapper;
 
+import net.minecraft.client.Minecraft;
+
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,9 +42,40 @@ public class RenderGenerationService {
         }
         private void updatePriority() {
             int unique = COUNTER.incrementAndGet();
-            int lvl = WorldEngine.MAX_LOD_LAYER-WorldEngine.getLevel(this.position);
-            lvl = Math.min(lvl, 3);//Make the 2 highest quality have equal priority
-            this.priority = (((lvl*3L + Math.min(this.attempts, 3))*2 + this.addin) <<32) + Integer.toUnsignedLong(unique);
+            int lvl = WorldEngine.getLevel(this.position);
+
+            // Calculate distance to camera
+            var player = Minecraft.getInstance().player;
+            int camSecX = player != null ? (player.getBlockX() >> 4) : 0;
+            int camSecZ = player != null ? (player.getBlockZ() >> 4) : 0;
+
+            int secX = WorldEngine.getX(this.position) << lvl;
+            int secZ = WorldEngine.getZ(this.position) << lvl;
+            int dx = secX - camSecX;
+            int dz = secZ - camSecZ;
+            long distSq = (long) dx * dx + (long) dz * dz;
+
+            int distTier;
+            int qualityRank;
+            if (distSq < 16 * 16) { // < 256 blocks: foreground
+                distTier = 0;
+                qualityRank = lvl; // LOD 0 first
+            } else if (distSq < 32 * 32) { // 256 - 512 blocks: mid-near
+                distTier = 1;
+                qualityRank = lvl; // LOD 0, 1 first
+            } else if (distSq < 64 * 64) { // 512 - 1024 blocks: mid-far
+                distTier = 2;
+                qualityRank = Math.min(lvl, 2);
+            } else if (distSq < 128 * 128) { // 1024 - 2048 blocks: far
+                distTier = 3;
+                qualityRank = (WorldEngine.MAX_LOD_LAYER - lvl);
+            } else { // > 2048 blocks: extreme horizon
+                distTier = 4;
+                qualityRank = (WorldEngine.MAX_LOD_LAYER - lvl);
+            }
+
+            long bucket = (((long) distTier * 8L + qualityRank) * 4L + Math.min(this.attempts, 3)) * 2L + this.addin;
+            this.priority = (bucket << 32) | Integer.toUnsignedLong(unique);
             this.addin = 0;
         }
     }
@@ -272,6 +305,7 @@ public class RenderGenerationService {
         }
 
         if (mesh != null) {//If the mesh is null it means it didnt finish, so dont submit
+            MESH_FAILED_COUNTER.set(0);
             if (this.resultConsumer != null) {
                 this.resultConsumer.accept(mesh);
             } else {

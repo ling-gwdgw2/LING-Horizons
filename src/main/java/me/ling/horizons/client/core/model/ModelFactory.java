@@ -182,6 +182,9 @@ public class ModelFactory {
     }
 
     public boolean addEntry(int blockId) {
+        if (blockId <= 0 || blockId >= this.idMappings.length || blockId >= this.mapper.getBlockStateCount()) {
+            return false;
+        }
         if (this.idMappings[blockId] != -1) {
             return false;
         }

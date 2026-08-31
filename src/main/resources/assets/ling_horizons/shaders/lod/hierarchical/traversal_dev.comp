@@ -54,7 +54,9 @@ layout(binding = STATISTICS_BUFFER_BINDING, std430) restrict buffer statisticsBu
 
 void addRequest(inout UnpackedNode node) {
     //printf("Put node decend request");
-    if (!hasRequested(node)) {
+    // Retry heartbeat: if requested but still unexpanded, retry every ~64 frames (~1 sec) to auto-recover stalled nodes
+    bool isRetryFrame = ((frameId & 63u) == (getId(node) & 63u));
+    if (!hasRequested(node) || isRetryFrame) {
         if (requestQueueIndex.x < requestQueueSize) {//Soft limit
             uint atomRes = atomicAdd(requestQueueIndex.x, 1);
             if (atomRes < MAX_REQUEST_QUEUE_SIZE) {//Hard limit

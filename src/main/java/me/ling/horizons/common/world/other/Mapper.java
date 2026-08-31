@@ -1,7 +1,6 @@
 package me.ling.horizons.common.world.other;
 
 import com.mojang.serialization.Dynamic;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.ling.horizons.common.Logger;
 import me.ling.horizons.common.config.IMappingStorage;
 import me.ling.horizons.common.util.Pair;
@@ -27,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
@@ -46,13 +46,15 @@ public class Mapper {
     public static final long AIR = 0;
 
     private final ReentrantLock blockLock = new ReentrantLock();
-    private final ConcurrentHashMap<BlockState, StateEntry> block2stateEntry = new ConcurrentHashMap<>(2000,0.75f, 10);
-    private final ObjectArrayList<StateEntry> blockId2stateEntry = new ObjectArrayList<>();
-
+    private final ConcurrentHashMap<BlockState, StateEntry> block2stateEntry = new ConcurrentHashMap<>(2000, 0.75f, 10);
+    private volatile StateEntry[] blockId2stateEntryArray = new StateEntry[16];
+    private volatile int blockStateCount = 0;
 
     private final ReentrantLock biomeLock = new ReentrantLock();
-    private final ConcurrentHashMap<String, BiomeEntry> biome2biomeEntry = new ConcurrentHashMap<>(2000,0.75f, 10);
-    private final ObjectArrayList<BiomeEntry> biomeId2biomeEntry = new ObjectArrayList<>();
+    private final ConcurrentHashMap<String, BiomeEntry> biome2biomeEntry = new ConcurrentHashMap<>(2000, 0.75f, 10);
+    private final ConcurrentHashMap<Holder<Biome>, BiomeEntry> holder2biomeEntry = new ConcurrentHashMap<>(512, 0.75f, 10);
+    private volatile BiomeEntry[] biomeId2biomeEntryArray = new BiomeEntry[16];
+    private volatile int biomeCount = 0;
 
     private Consumer<StateEntry> newStateCallback;
     private Consumer<BiomeEntry> newBiomeCallback;
@@ -61,7 +63,8 @@ public class Mapper {
         //Insert air since its a special entry (index 0)
         var airEntry = new StateEntry(0, Blocks.AIR.defaultBlockState());
         this.block2stateEntry.put(airEntry.state, airEntry);
-        this.blockId2stateEntry.add(airEntry);
+        this.blockId2stateEntryArray[0] = airEntry;
+        this.blockStateCount = 1;
 
         this.loadFromStorage();
     }
@@ -158,19 +161,32 @@ public class Mapper {
         }
 
         //Insert into the arrays
-        sentries.stream().sorted(Comparator.comparing(a->a.id)).forEach(entry -> {
-            if (this.blockId2stateEntry.size() != entry.id) {
-                throw new IllegalStateException("Block entry not ordered");
-            }
-            this.blockId2stateEntry.add(entry);
-        });
+        int maxBlockId = 0;
+        for (var entry : sentries) {
+            if (entry.id > maxBlockId) maxBlockId = entry.id;
+        }
+        StateEntry[] blockArray = new StateEntry[Math.max(16, maxBlockId + 1)];
+        blockArray[0] = this.blockId2stateEntryArray[0]; // Air
+        int bCount = 1;
+        for (var entry : sentries) {
+            blockArray[entry.id] = entry;
+            bCount++;
+        }
+        this.blockId2stateEntryArray = blockArray;
+        this.blockStateCount = Math.max(bCount, maxBlockId + 1);
 
-        bentries.stream().sorted(Comparator.comparing(a->a.id)).forEach(entry -> {
-            if (this.biomeId2biomeEntry.size() != entry.id) {
-                throw new IllegalStateException("Biome entry not ordered. got " + entry.biome + " with id " + entry.id + " expected id " + this.biomeId2biomeEntry.size());
-            }
-            this.biomeId2biomeEntry.add(entry);
-        });
+        int maxBiomeId = -1;
+        for (var entry : bentries) {
+            if (entry.id > maxBiomeId) maxBiomeId = entry.id;
+        }
+        BiomeEntry[] biomeArray = new BiomeEntry[Math.max(16, maxBiomeId + 1)];
+        int bioCount = 0;
+        for (var entry : bentries) {
+            biomeArray[entry.id] = entry;
+            bioCount++;
+        }
+        this.biomeId2biomeEntryArray = biomeArray;
+        this.biomeCount = Math.max(bioCount, maxBiomeId + 1);
 
         if (forceResave[0]) {
             Logger.warn("Forced state resave triggered");
@@ -179,54 +195,78 @@ public class Mapper {
     }
 
     public final int getBlockStateCount() {
-        return this.blockId2stateEntry.size();
+        return this.blockStateCount;
     }
 
     private StateEntry registerNewBlockState(BlockState state) {
         this.blockLock.lock();
-        var entry = this.block2stateEntry.get(state);
-        if (entry != null) {
-            this.blockLock.unlock();
+        try {
+            var entry = this.block2stateEntry.get(state);
+            if (entry != null) {
+                return entry;
+            }
+
+            int id = this.blockStateCount;
+            entry = new StateEntry(id, state);
+
+            StateEntry[] current = this.blockId2stateEntryArray;
+            if (id >= current.length) {
+                StateEntry[] newArray = Arrays.copyOf(current, Math.max(id + 1, current.length * 2));
+                newArray[id] = entry;
+                this.blockId2stateEntryArray = newArray;
+            } else {
+                current[id] = entry;
+            }
+            this.blockStateCount = id + 1;
+            this.block2stateEntry.put(state, entry);
+
+            byte[] serialized = entry.serialize();
+            ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
+            buffer.put(serialized);
+            buffer.rewind();
+            this.storage.putIdMapping(entry.id | (BLOCK_STATE_TYPE << 30), buffer);
+            MemoryUtil.memFree(buffer);
+
+            if (this.newStateCallback != null) this.newStateCallback.accept(entry);
             return entry;
+        } finally {
+            this.blockLock.unlock();
         }
-
-        entry = new StateEntry(this.blockId2stateEntry.size(), state);
-        this.blockId2stateEntry.add(entry);
-        this.block2stateEntry.put(state, entry);
-        this.blockLock.unlock();
-
-        byte[] serialized = entry.serialize();
-        ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
-        buffer.put(serialized);
-        buffer.rewind();
-        this.storage.putIdMapping(entry.id | (BLOCK_STATE_TYPE<<30), buffer);
-        MemoryUtil.memFree(buffer);
-
-        if (this.newStateCallback!=null)this.newStateCallback.accept(entry);
-        return entry;
     }
 
     private BiomeEntry registerNewBiome(String biome) {
         this.biomeLock.lock();
-        var entry = this.biome2biomeEntry.get(biome);
-        if (entry != null) {
-            this.biomeLock.unlock();
+        try {
+            var entry = this.biome2biomeEntry.get(biome);
+            if (entry != null) {
+                return entry;
+            }
+            int id = this.biomeCount;
+            entry = new BiomeEntry(id, biome);
+
+            BiomeEntry[] current = this.biomeId2biomeEntryArray;
+            if (id >= current.length) {
+                BiomeEntry[] newArray = Arrays.copyOf(current, Math.max(id + 1, current.length * 2));
+                newArray[id] = entry;
+                this.biomeId2biomeEntryArray = newArray;
+            } else {
+                current[id] = entry;
+            }
+            this.biomeCount = id + 1;
+            this.biome2biomeEntry.put(biome, entry);
+
+            byte[] serialized = entry.serialize();
+            ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
+            buffer.put(serialized);
+            buffer.rewind();
+            this.storage.putIdMapping(entry.id | (BIOME_TYPE << 30), buffer);
+            MemoryUtil.memFree(buffer);
+
+            if (this.newBiomeCallback != null) this.newBiomeCallback.accept(entry);
             return entry;
+        } finally {
+            this.biomeLock.unlock();
         }
-        entry = new BiomeEntry(this.biomeId2biomeEntry.size(), biome);
-        this.biomeId2biomeEntry.add(entry);
-        this.biome2biomeEntry.put(biome, entry);
-        this.biomeLock.unlock();
-
-        byte[] serialized = entry.serialize();
-        ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
-        buffer.put(serialized);
-        buffer.rewind();
-        this.storage.putIdMapping(entry.id | (BIOME_TYPE<<30), buffer);
-        MemoryUtil.memFree(buffer);
-
-        if (this.newBiomeCallback!=null)this.newBiomeCallback.accept(entry);
-        return entry;
     }
 
 
@@ -237,7 +277,15 @@ public class Mapper {
     }
 
     public BlockState getBlockStateFromBlockId(int blockId) {
-        return this.blockId2stateEntry.get(blockId).state;
+        if (blockId <= 0) {
+            return Blocks.AIR.defaultBlockState();
+        }
+        StateEntry[] array = this.blockId2stateEntryArray;
+        if (blockId >= array.length) {
+            return Blocks.AIR.defaultBlockState();
+        }
+        StateEntry entry = array[blockId];
+        return entry == null ? Blocks.AIR.defaultBlockState() : entry.state;
     }
 
     public int getIdForBlockState(BlockState state) {
@@ -256,16 +304,35 @@ public class Mapper {
     }
 
     public int getBlockStateOpacity(int blockId) {
-        return this.blockId2stateEntry.get(blockId).opacity;
+        if (blockId <= 0) {
+            return 0;
+        }
+        StateEntry[] array = this.blockId2stateEntryArray;
+        if (blockId >= array.length) {
+            return 0;
+        }
+        StateEntry entry = array[blockId];
+        return entry == null ? 0 : entry.opacity;
     }
 
     public int getIdForBiome(Holder<Biome> biome) {
-        // MC 1.21.1: ResourceKey.identifier() → location()
-        String biomeId = biome.unwrapKey().get().location().toString();
-        var entry = this.biome2biomeEntry.get(biomeId);
+        if (biome == null) {
+            return 0;
+        }
+        var entry = this.holder2biomeEntry.get(biome);
+        if (entry != null) {
+            return entry.id;
+        }
+        var opt = biome.unwrapKey();
+        if (opt.isEmpty()) {
+            return 0;
+        }
+        String biomeId = opt.get().location().toString();
+        entry = this.biome2biomeEntry.get(biomeId);
         if (entry == null) {
             entry = this.registerNewBiome(biomeId);
         }
+        this.holder2biomeEntry.put(biome, entry);
         return entry.id;
     }
 
@@ -276,36 +343,30 @@ public class Mapper {
         return (Byte.toUnsignedLong(light)<<56)|(Integer.toUnsignedLong(biomeId) << 47)|(Integer.toUnsignedLong(blockId)<<27);
     }
 
-    //TODO: fixme: synchronize access to this.blockId2stateEntry
     public StateEntry[] getStateEntries() {
         this.blockLock.lock();
-        var set = new ArrayList<>(this.blockId2stateEntry);
-        StateEntry[] out = new StateEntry[set.size()];
-        int i = 0;
-        for (var entry : set) {
-            if (entry.id != i++) {
-                throw new IllegalStateException();
-            }
-            out[i-1] = entry;
+        try {
+            StateEntry[] current = this.blockId2stateEntryArray;
+            int count = this.blockStateCount;
+            StateEntry[] out = new StateEntry[count];
+            System.arraycopy(current, 0, out, 0, count);
+            return out;
+        } finally {
+            this.blockLock.unlock();
         }
-        this.blockLock.unlock();
-        return out;
     }
 
-    //TODO: fixme: synchronize access to this.biomeId2biomeEntry
     public BiomeEntry[] getBiomeEntries() {
         this.biomeLock.lock();
-        var set = new ArrayList<>(this.biomeId2biomeEntry);
-        BiomeEntry[] out = new BiomeEntry[set.size()];
-        int i = 0;
-        for (var entry : set) {
-            if (entry.id != i++) {
-                throw new IllegalStateException();
-            }
-            out[i-1] = entry;
+        try {
+            BiomeEntry[] current = this.biomeId2biomeEntryArray;
+            int count = this.biomeCount;
+            BiomeEntry[] out = new BiomeEntry[count];
+            System.arraycopy(current, 0, out, 0, count);
+            return out;
+        } finally {
+            this.biomeLock.unlock();
         }
-        this.biomeLock.unlock();
-        return out;
     }
 
     public void forceResaveStates() {
@@ -317,9 +378,6 @@ public class Mapper {
             if (entry.state.isAir() && entry.id == 0) {
                 continue;
             }
-            if (this.blockId2stateEntry.indexOf(entry) != entry.id) {
-                throw new IllegalStateException("State Id NOT THE SAME, very critically bad. arr:" + this.blockId2stateEntry.indexOf(entry) + " entry: " + entry.id);
-            }
             byte[] serialized = entry.serialize();
             ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
             buffer.put(serialized);
@@ -329,10 +387,6 @@ public class Mapper {
         }
 
         for (var entry : biomes) {
-            if (this.biomeId2biomeEntry.indexOf(entry) != entry.id) {
-                throw new IllegalStateException("Biome Id NOT THE SAME, very critically bad");
-            }
-
             byte[] serialized = entry.serialize();
             ByteBuffer buffer = MemoryUtil.memAlloc(serialized.length);
             buffer.put(serialized);
@@ -340,7 +394,6 @@ public class Mapper {
             this.storage.putIdMapping(entry.id | (BIOME_TYPE<<30), buffer);
             MemoryUtil.memFree(buffer);
         }
-
         this.storage.flush();
     }
 

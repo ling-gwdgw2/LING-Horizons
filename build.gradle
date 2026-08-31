@@ -108,7 +108,7 @@ dependencies {
 
     // Sodium for NeoForge
     implementation "maven.modrinth:sodium:mc1.21.1-0.6.13-neoforge"
-    compileOnly files('libs/sodium-neoforge-0.8.12-mod.jar')
+    compileOnly files('libs/sodium-neoforge-0.8.13-mod.jar')
 
     // Lithium for NeoForge
     implementation("maven.modrinth:lithium:mc1.21.1-0.15.1-neoforge")

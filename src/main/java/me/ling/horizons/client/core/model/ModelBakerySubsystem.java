@@ -86,8 +86,7 @@ public class ModelBakerySubsystem {
     private final ReentrantLock seenIdsLock = new ReentrantLock();
     private final IntOpenHashSet seenIds = new IntOpenHashSet(6000);//TODO: move to a lock free concurrent hashmap
     public void requestBlockBake(int blockId) {
-        if (this.mapper.getBlockStateCount() < blockId) {
-            Logger.error("Error, got bakeing request for out of range state id. StateId: " + blockId + " max id: " + this.mapper.getBlockStateCount(), new Exception());
+        if (blockId <= 0 || blockId >= this.mapper.getBlockStateCount()) {
             return;
         }
         this.seenIdsLock.lock();

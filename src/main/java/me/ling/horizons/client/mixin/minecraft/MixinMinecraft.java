@@ -15,6 +15,22 @@ public class MixinMinecraft {
     private void voxy$injectWorldClose(CallbackInfo ci) {
         WorldPregenerator.getInstance().cancelPregen();
         Minecraft mc = Minecraft.getInstance();
+        if (mc.level != null && me.ling.horizons.client.config.LingConfig.CONFIG.ingestEnabled) {
+            var chunkSource = mc.level.getChunkSource();
+            if (chunkSource != null) {
+                int px = (mc.player != null) ? (mc.player.getBlockX() >> 4) : 0;
+                int pz = (mc.player != null) ? (mc.player.getBlockZ() >> 4) : 0;
+                int rd = mc.options.getEffectiveRenderDistance() + 2;
+                for (int cx = px - rd; cx <= px + rd; cx++) {
+                    for (int cz = pz - rd; cz <= pz + rd; cz++) {
+                        var chunk = chunkSource.getChunk(cx, cz, false);
+                        if (chunk != null) {
+                            me.ling.horizons.common.world.service.VoxelIngestService.tryAutoIngestChunk(chunk);
+                        }
+                    }
+                }
+            }
+        }
         if (mc.levelRenderer != null) {
             ((me.ling.horizons.client.core.IGetLingRenderSystem) mc.levelRenderer).shutdownRenderer();
         }

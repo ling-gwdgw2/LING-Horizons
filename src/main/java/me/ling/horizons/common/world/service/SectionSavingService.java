@@ -73,12 +73,10 @@ public class SectionSavingService {
 
     public void shutdown() {
         this.service.shutdown();
-        int saved = 0;
-        // Manually save remaining entries up to 200 items to avoid long shutdown delay
-        while (!this.saveQueue.isEmpty() && saved < 200) {
+        // Fully drain and commit all remaining entries to RocksDB to guarantee zero data loss
+        while (!this.saveQueue.isEmpty()) {
             try {
                 this.processJob();
-                saved++;
             } catch (Exception e) {
                 break;
             }

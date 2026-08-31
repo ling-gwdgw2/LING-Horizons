@@ -42,4 +42,14 @@ public class LingClientEvents {
             event.setCanceled(true);
         }
     }
+
+    /**
+     * Handles keybinding presses (e.g. Ctrl+R to reload LOD Renderer).
+     */
+    @SubscribeEvent
+    public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+        while (LingKeyBindings.RELOAD_KEY.consumeClick()) {
+            LingCommands.reloadInstanceDirect();
+        }
+    }
 }

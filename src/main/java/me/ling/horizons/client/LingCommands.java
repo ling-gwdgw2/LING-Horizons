@@ -126,14 +126,17 @@ public class LingCommands {
         }
     }
 
-    private static int reloadInstance(CommandContext<CommandSourceStack> ctx) {
+    public static int reloadInstanceDirect() {
         var instance = (LingClientInstance)LingCommon.getInstance();
         if (instance == null) {
-            ctx.getSource().sendFailure(Component.translatable("Voxy must be enabled in settings to use this"));
+            if (Minecraft.getInstance().player != null) {
+                Minecraft.getInstance().player.displayClientMessage(
+                    Component.literal("§c[LING Horizons] LOD Renderer is disabled in settings."), false);
+            }
             return 1;
         }
         var wr = Minecraft.getInstance().levelRenderer;
-        if (wr!=null) {
+        if (wr != null) {
             ((IGetLingRenderSystem)wr).shutdownRenderer();
         }
 
@@ -143,7 +146,16 @@ public class LingCommands {
 
         var r = Minecraft.getInstance().levelRenderer;
         if (r != null) r.allChanged();
+
+        if (Minecraft.getInstance().player != null) {
+            Minecraft.getInstance().player.displayClientMessage(
+                Component.literal("§a[LING Horizons] LOD Renderer reloaded successfully! (Ctrl+R)"), true);
+        }
         return 0;
+    }
+
+    private static int reloadInstance(CommandContext<CommandSourceStack> ctx) {
+        return reloadInstanceDirect();
     }
 
 

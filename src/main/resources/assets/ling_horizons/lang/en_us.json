@@ -17,7 +17,9 @@
   "ling_horizons.options.autoPregenThreads.tooltip": "Number of parallel worker threads used during /ling pregen.",
 
   "voxy.config.title": "LING Horizons",
-  "voxy.config.general": "General Settings",
+  "voxy.config.general": "General & Hardware",
+  "voxy.config.quality": "Quality & Distance",
+  "voxy.config.atmosphere": "Atmosphere & Shaders",
   "voxy.config.rendering": "LOD Rendering",
   "voxy.config.general.enabled": "Enable LING Horizons",
   "voxy.config.general.enabled.tooltip": "Master switch to fully enable or disable the LING Horizons distant LOD system.",
@@ -74,5 +76,7 @@
   "voxy.sodium.option.auto_pregen_threads": "Pre-gen Worker Threads",
   "voxy.sodium.option.auto_pregen_threads.tooltip": "Number of dedicated background worker threads for World Pre-generation (1 to 4 threads).",
   "voxy.sodium.option.distant_shader_shadows": "Distant Shader Shadows (LOD)",
-  "voxy.sodium.option.distant_shader_shadows.tooltip": "Enables shader cloud shadows, sunlight attenuation, and atmospheric lighting on distant LOD terrain via Iris."
+  "voxy.sodium.option.distant_shader_shadows.tooltip": "Enables shader cloud shadows, sunlight attenuation, and atmospheric lighting on distant LOD terrain via Iris.",
+  "key.categories.ling_horizons": "LING Horizons",
+  "key.ling_horizons.reload": "Reload LOD Renderer (Ctrl+R)"
 }

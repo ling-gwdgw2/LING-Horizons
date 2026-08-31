@@ -11,6 +11,7 @@ import me.ling.horizons.common.world.WorldUpdater;
 import me.ling.horizons.commonImpl.LingCommon;
 import me.ling.horizons.commonImpl.WorldIdentifier;
 import net.minecraft.core.SectionPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -44,7 +45,7 @@ public class VoxelIngestService {
                     SECTION_CACHE.get(),
                     task.world.getMapper(),
                     section.getStates(),
-                    section.getBiomes(),
+                    section.hasOnlyAir() ? null : section.getBiomes(),
                     getLightingSupplier(task)
             );
             WorldConversionFactory.mipSection(csec, task.world.getMapper());
@@ -108,17 +109,15 @@ public class VoxelIngestService {
         for (var section : chunk.getSections()) {
             i++;
             if (section == null || !shouldIngestSection(section, chunk.getPos().x, i, chunk.getPos().z)) continue;
-            allEmpty&=section.hasOnlyAir();
-            //if (section.isEmpty()) continue;
+            allEmpty &= section.hasOnlyAir();
             var pos = SectionPos.of(chunk.getPos(), i);
             if (lightingProvider.getDebugSectionType(LightLayer.SKY, pos) != LayerLightSectionStorage.SectionType.LIGHT_AND_DATA && lightingProvider.getDebugSectionType(LightLayer.BLOCK, pos) != LayerLightSectionStorage.SectionType.LIGHT_AND_DATA)
                 continue;
             gotLighting = true;
         }
 
-        if (allEmpty&&!gotLighting) {
-            //Special case all empty chunk columns, we need to clear it out
-            // MC 1.21.1: LevelChunk.getMinSectionY() → chunk.getLevel().getMinSection()
+        if (allEmpty && !gotLighting) {
+            // Special case all empty chunk columns, we need to clear it out
             i = chunk.getLevel().getMinSection() - 1;
             for (var section : chunk.getSections()) {
                 i++;
@@ -128,7 +127,7 @@ public class VoxelIngestService {
                 try {
                     this.service.execute();
                 } catch (Exception e) {
-                    Logger.error("Executing had an error: assume shutting down, aborting",e);
+                    Logger.error("Executing had an error: assume shutting down, aborting", e);
                     break;
                 }
             }
@@ -160,7 +159,6 @@ public class VoxelIngestService {
                 }
             }
 
-            engine.markActive();
             this.ingestQueue.add(new IngestSection(chunk.getPos().x, i, chunk.getPos().z, engine, section, bl, sl));
             try {
                 this.service.execute();
@@ -179,6 +177,51 @@ public class VoxelIngestService {
     public void shutdown() {
         this.ingestQueue.clear();
         this.service.shutdown();
+    }
+
+    public boolean enqueueIngest(WorldEngine engine, net.minecraft.world.level.chunk.ChunkAccess chunk, Level level) {
+        if (!this.service.isLive() || !engine.isLive() || chunk == null || level == null) return false;
+        engine.markActive();
+        var lightingProvider = level.getLightEngine();
+        int minSec = level.getMinSection();
+        int i = minSec - 1;
+        for (var section : chunk.getSections()) {
+            i++;
+            if (section == null || !shouldIngestSection(section, chunk.getPos().x, i, chunk.getPos().z)) continue;
+            var pos = SectionPos.of(chunk.getPos(), i);
+            DataLayer bl = null;
+            DataLayer sl = null;
+            if (lightingProvider != null) {
+                var blp = lightingProvider.getLayerListener(LightLayer.BLOCK);
+                var slp = lightingProvider.getLayerListener(LightLayer.SKY);
+                if (blp != null) {
+                    var rawBl = blp.getDataLayerData(pos);
+                    if (rawBl != null) bl = rawBl.copy();
+                }
+                if (slp != null) {
+                    var rawSl = slp.getDataLayerData(pos);
+                    if (rawSl != null) sl = rawSl.copy();
+                }
+            }
+            this.ingestQueue.add(new IngestSection(chunk.getPos().x, i, chunk.getPos().z, engine, section, bl, sl));
+            try {
+                this.service.execute();
+            } catch (Exception e) {
+                break;
+            }
+        }
+        return true;
+    }
+
+    public static boolean tryAutoIngestChunkAccess(net.minecraft.world.level.chunk.ChunkAccess chunk, Level level) {
+        if (chunk == null || level == null) return false;
+        var worldId = WorldIdentifier.of(level);
+        if (worldId == null) return false;
+        var instance = LingCommon.getInstance();
+        if (instance == null) return false;
+        var engine = instance.getOrCreate(worldId);
+        if (engine == null) return false;
+        return instance.getIngestService().enqueueIngest(engine, chunk, level);
     }
 
     //Utility method to ingest a chunk into the given WorldIdentifier or world
