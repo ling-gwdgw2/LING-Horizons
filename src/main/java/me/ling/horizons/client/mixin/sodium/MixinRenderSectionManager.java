@@ -136,7 +136,7 @@ public class MixinRenderSectionManager {
                 this.cachedChunkPos = key;
                 this.cachedChunkStatus = tracker.getOrDefault(key, 0);
             }
-            if (this.cachedChunkStatus == 3) {//If this chunk still has surrounding chunks
+            if ((this.cachedChunkStatus & 1) != 0 || this.cachedChunkStatus == 3) {//If this chunk has valid block data or surrounding chunks
                 var section = this.level.getChunk(x,z).getSection(y-this.bottomSectionY);
                 var lp = this.level.getLightEngine();
 

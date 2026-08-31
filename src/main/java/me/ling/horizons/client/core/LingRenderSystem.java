@@ -131,8 +131,8 @@ public class LingRenderSystem {
             {
                 // MC 1.21.1: Use getMinSection()/getMaxSection() instead of getMinSectionY()/getMaxSectionY()
                 var level = (net.minecraft.world.level.Level)Minecraft.getInstance().level;
-                int minSec = level.getMinSection() >> 5;
-                int maxSec = (level.getMaxSection() - 1) >> 5;
+                int minSec = level.getMinSection() >> 4;
+                int maxSec = (level.getMaxSection() - 1) >> 4;
 
                 //Do some very cheeky stuff for MiB
                 if (LingCommon.IS_MINE_IN_ABYSS) {//TODO: make this somehow configurable
